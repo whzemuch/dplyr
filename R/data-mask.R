@@ -11,8 +11,8 @@ DataMask <- R6Class("DataMask",
       frame <- caller_env(n = 2)
       local_mask(self, frame)
 
-      private$chops <- dplyr_lazy_vec_chop(data, caller)
-      private$masks <- dplyr_data_masks(private$chops, data)
+      private$chops <- dplyr_lazy_vec_chop(data, rows, caller)
+      private$masks <- dplyr_data_masks(private$chops, data, rows)
 
       private$data <- data
       private$caller <- caller

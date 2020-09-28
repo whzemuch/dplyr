@@ -92,8 +92,8 @@ SEXP dplyr_group_keys(SEXP group_data);
 SEXP dplyr_mask_set(SEXP env_private, SEXP s_name, SEXP chunks);
 SEXP dplyr_mask_add(SEXP env_private, SEXP s_name, SEXP chunks);
 
-SEXP dplyr_lazy_vec_chop(SEXP data, SEXP caller_env);
-SEXP dplyr_data_masks_setup(SEXP chops, SEXP data);
+SEXP dplyr_lazy_vec_chop(SEXP data, SEXP rows, SEXP caller_env);
+SEXP dplyr_data_masks_setup(SEXP chops, SEXP data, SEXP rows);
 SEXP env_resolved(SEXP env, SEXP names);
 SEXP dplyr_eval_tidy_all(SEXP quosures, SEXP chops, SEXP masks, SEXP caller_env, SEXP auto_names, SEXP private_env, SEXP fn);
 SEXP dplyr_combine_filter(SEXP lists, SEXP n, SEXP rows);

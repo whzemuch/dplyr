@@ -1,15 +1,16 @@
 
-dplyr_lazy_vec_chop <- function(data, caller_env) {
-  .Call(dplyr_lazy_vec_chop_impl, data, caller_env)
+dplyr_lazy_vec_chop <- function(data, rows, caller_env) {
+  .Call(dplyr_lazy_vec_chop_impl, data, rows, caller_env)
 }
 
 resolved <- function(env) {
   .Call(env_resolved, env, env_names(env))
 }
 
-dplyr_data_masks <- function(chops, data) {
-  masks <- .Call(dplyr_data_masks_setup, chops, data)
+dplyr_data_masks <- function(chops, data, rows) {
+  masks <- .Call(dplyr_data_masks_setup, chops, data, rows)
 
+  # TODO: can this be done internally ?
   for (i in seq_along(masks)) {
     masks[[i]] <- new_data_mask(masks[[i]])
     masks[[i]]$.data <- as_data_pronoun(masks[[i]])
