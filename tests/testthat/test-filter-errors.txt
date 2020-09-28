@@ -25,7 +25,7 @@ i The error occurred in group 1: Species = "setosa".
 
 > iris %>% rowwise(Species) %>% filter(c(TRUE, FALSE))
 Error: Problem with `filter()` input `..1`.
-x incompatible size: must be size 1 or 1, not size 2
+x incompatible size: must be size 1, not size 2
 i Input `..1` is `c(TRUE, FALSE)`.
 
 > iris %>% filter(c(TRUE, FALSE))
@@ -45,7 +45,7 @@ i The error occurred in group 1: Species = "setosa".
 
 > iris %>% rowwise() %>% filter(data.frame(c(TRUE, FALSE)))
 Error: Problem with `filter()` input `..1`.
-x incompatible size: must be size 1 or 1, not size 2
+x incompatible size: must be size 1, not size 2
 i Input `..1` is `data.frame(c(TRUE, FALSE))`.
 
 > iris %>% filter(data.frame(c(TRUE, FALSE)))
@@ -55,7 +55,7 @@ i Input `..1` is `data.frame(c(TRUE, FALSE))`.
 
 > tibble(x = 1) %>% filter(c(TRUE, TRUE))
 Error: Problem with `filter()` input `..1`.
-x incompatible size: must be size 1 or 1, not size 2
+x incompatible size: must be size 1, not size 2
 i Input `..1` is `c(TRUE, TRUE)`.
 
 
