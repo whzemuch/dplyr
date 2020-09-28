@@ -1,4 +1,5 @@
 #include "dplyr.h"
+#include <string>
 
 SEXP new_environment(int size, SEXP parent)  {
   SEXP call = PROTECT(Rf_lang4(Rf_install("new.env"), Rf_ScalarLogical(TRUE), parent, Rf_ScalarInteger(size)));
@@ -89,13 +90,16 @@ SEXP dplyr_data_masks_setup(SEXP chops_env, SEXP data) {
   R_xlen_t mask_size = n_columns + 20;
   SEXP masks = PROTECT(Rf_allocVector(VECSXP, n_groups));
   SEXP list_indices = Rf_findVarInFrame(ENCLOS(chops_env), dplyr::symbols::dot_indices);
+
   for (R_xlen_t i = 0; i < n_groups; i++) {
     SEXP mask_metadata_env = PROTECT(new_environment(2, R_EmptyEnv));
     Rf_defineVar(dplyr::symbols::dot_indices, VECTOR_ELT(list_indices, i), mask_metadata_env);
     Rf_defineVar(dplyr::symbols::current_group, Rf_ScalarInteger(i+1), mask_metadata_env);
 
-    SET_VECTOR_ELT(masks, i, new_environment(mask_size, mask_metadata_env));
-    UNPROTECT(1);
+    SEXP mask = PROTECT(new_environment(mask_size, mask_metadata_env));
+
+    SET_VECTOR_ELT(masks, i, mask);
+    UNPROTECT(2);
   }
 
   for (R_xlen_t i = 0; i < n_columns; i++) {
@@ -144,16 +148,43 @@ SEXP eval_hybrid(SEXP quo, SEXP chops) {
 
 }
 
-SEXP dplyr_eval_tidy_all(SEXP quosures, SEXP chops, SEXP masks, SEXP caller_env, SEXP auto_names, SEXP private_env) {
+enum Function {
+  FILTER,
+  SLICE,
+  MUTATE,
+  SUMMARISE,
+
+  OTHER
+};
+
+Function function_case(SEXP fn) {
+  std::string fn_name(CHAR(STRING_ELT(fn, 0)));
+
+  if (fn_name == "filter") {
+    return FILTER;
+  } else if (fn_name == "slice") {
+    return SLICE;
+  } else if (fn_name == "mutate") {
+    return MUTATE;
+  } else if (fn_name == "summarise") {
+    return SUMMARISE;
+  } else {
+    return OTHER;
+  }
+}
+
+
+SEXP dplyr_eval_tidy_all(SEXP quosures, SEXP chops, SEXP masks, SEXP caller_env, SEXP auto_names, SEXP private_env, SEXP fn) {
   R_xlen_t n_expr = XLENGTH(quosures);
   SEXP names = PROTECT(Rf_getAttrib(quosures, R_NamesSymbol));
   if (names == R_NilValue) {
     UNPROTECT(1);
-
     names = PROTECT(Rf_allocVector(STRSXP, n_expr));
   }
 
   R_xlen_t n_masks = XLENGTH(masks);
+
+  Function fn_case = function_case(fn);
 
   // initialize all results
   SEXP res = PROTECT(Rf_allocVector(VECSXP, n_masks));
@@ -163,6 +194,8 @@ SEXP dplyr_eval_tidy_all(SEXP quosures, SEXP chops, SEXP masks, SEXP caller_env,
     SET_VECTOR_ELT(res, i, res_i);
     UNPROTECT(1);
   }
+
+  SEXP list_indices = Rf_findVarInFrame(ENCLOS(chops), dplyr::symbols::dot_indices);
 
   SEXP index_expression = Rf_findVarInFrame(private_env, dplyr::symbols::current_expression);
   int *p_index_expression = INTEGER(index_expression);
@@ -222,6 +255,7 @@ SEXP dplyr_eval_tidy_all(SEXP quosures, SEXP chops, SEXP masks, SEXP caller_env,
 
         } else {
           // unnamed, but not a data frame, so use the deduced name
+
           SEXP s_auto_name = Rf_installChar(auto_name);
 
           for (R_xlen_t i_group = 0; i_group < n_masks; i_group++) {
@@ -254,6 +288,30 @@ SEXP dplyr_eval_tidy_all(SEXP quosures, SEXP chops, SEXP masks, SEXP caller_env,
         SEXP mask = VECTOR_ELT(masks, i_group);
 
         SEXP result = PROTECT(rlang::eval_tidy(quo, mask, caller_env));
+
+        // check type
+        if (fn_case == FILTER) {
+          if (TYPEOF(result) != LGLSXP) {
+            if (!Rf_inherits(result, "data.frame") || !all_lgl_columns(result)) {
+              Rf_error("incompatible type: must be a logical vector");
+            }
+          }
+        }
+
+        // check size
+        if (fn_case == FILTER || fn_case == MUTATE) {
+          R_xlen_t result_size = vctrs::short_vec_size(result);
+          SEXP indices = VECTOR_ELT(list_indices, i_group);
+          R_xlen_t expected_size = XLENGTH(indices);
+
+          if (result_size != 1 && result_size != expected_size) {
+            if (expected_size == 1) {
+              Rf_error("incompatible size: must be size 1, not size %d", result_size);
+            } else {
+              Rf_error("incompatible size: must be size 1 or %d, not size %d", expected_size, result_size);
+            }
+          }
+        }
 
         SET_VECTOR_ELT(VECTOR_ELT(res, i_group), i_expr, result);
 

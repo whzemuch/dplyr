@@ -8,11 +8,13 @@ base R error messages
 Error: Problem with `slice()` input `..1`.
 x too few positive probabilities
 i Input `..1` is `sample.int(n(), check_size(nrow(df2)/2, n(), replace = replace),     replace = replace, prob = y)`.
+i The error occurred in group 1: g = 1.
 
 > sample_frac(grp, 1, weight = y)
 Error: Problem with `slice()` input `..1`.
 x too few positive probabilities
 i Input `..1` is `sample.int(n(), round(n() * check_frac(1, replace = replace)),     replace = replace, prob = y)`.
+i The error occurred in group 1: g = 1.
 
 
 can't sample more values than obs (without replacement)
@@ -22,6 +24,7 @@ can't sample more values than obs (without replacement)
 Error: Problem with `slice()` input `..1`.
 x `size` must be less or equal than 7 (size of data), set `replace` = TRUE to use sampling with replacement.
 i Input `..1` is `sample.int(n(), check_size(10, n(), replace = replace), replace = replace,     prob = NULL)`.
+i The error occurred in group 2: cyl = 6.
 
 
 unknown type
@@ -65,6 +68,7 @@ i Input `..1` is `sample.int(n(), round(n() * check_frac(2, replace = replace)),
 Error: Problem with `slice()` input `..1`.
 x `size` of sampled fraction must be less or equal to one, set `replace` = TRUE to use sampling with replacement.
 i Input `..1` is `sample.int(n(), round(n() * check_frac(2, replace = replace)),     replace = replace, prob = NULL)`.
+i The error occurred in group 1: y = 0.
 
 > sample_frac(df, 1, weight = y)
 Error: Problem with `slice()` input `..1`.

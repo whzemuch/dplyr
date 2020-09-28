@@ -2,7 +2,7 @@ DataMask <- R6Class("DataMask",
   public = list(
     initialize = function(data, caller) {
       rows <- group_rows(data)
-      # workaround for whene there are 0 groups
+      # workaround for when there are 0 groups
       if (length(rows) == 0) {
         rows <- list(integer())
       }
@@ -124,13 +124,8 @@ DataMask <- R6Class("DataMask",
     },
 
     eval_all = function(quosures, fn, auto_names = names(quosures) %||% paste0(".quosure_", seq_along(quosures))) {
-      # context environment used internally to efficiently set:
-      private$eval_context <- env(
-        index_expression = NA_integer_, # which expression is currrently being evaluated
-        index_group = NA_integer_       # in which group
-      )
       withCallingHandlers(
-        .Call(dplyr_eval_tidy_all, quosures, private$chops, private$masks, private$caller, auto_names, private),
+        .Call(dplyr_eval_tidy_all, quosures, private$chops, private$masks, private$caller, auto_names, private, fn),
         error = function(e) {
 
           # retrieve context information
@@ -138,7 +133,7 @@ DataMask <- R6Class("DataMask",
           index_group <- private$current_group
 
           # TODO: handle when index_group = -1: error in hybrid eval
-          local_call_step(dots = quosures, .index = index_expression, .fn = "slice",
+          local_call_step(dots = quosures, .index = index_expression, .fn = fn,
                           .dot_data = inherits(e, "rlang_error_data_pronoun_not_found"))
 
           bullets <- c(
@@ -146,6 +141,7 @@ DataMask <- R6Class("DataMask",
             x = conditionMessage(e),
             i = cnd_bullet_input_info()
           )
+          .data <- private$data
           if (is_grouped_df(.data)) {
             keys <- group_keys(.data)[index_group, ]
             bullets <- c(bullets, i = glue("The error occurred in group {index_group}: {group_labels_details(keys)}."))
@@ -153,6 +149,10 @@ DataMask <- R6Class("DataMask",
           abort(bullets)
         }
       )
+    },
+
+    combine_filter = function(lists) {
+      .Call(`dplyr_combine_filter`, lists, nrow(private$data), private$rows)
     },
 
     eval_all_summarise = function(quo) {
@@ -268,8 +268,6 @@ DataMask <- R6Class("DataMask",
 
     chops = NULL,  # an environment with chops (maybe promises of each column of data)
     masks = NULL,  # a list of environments, one for each group with (promises to) slices for each column
-
-    eval_context = NULL, # evaluation context
 
     current_group = NA_integer_,
     current_expression = NA_integer_,

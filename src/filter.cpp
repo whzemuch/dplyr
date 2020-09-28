@@ -125,31 +125,61 @@ SEXP eval_filter_one(SEXP quos, SEXP mask, SEXP caller, R_xlen_t n, SEXP env_fil
   return reduced;
 }
 
-SEXP dplyr_mask_eval_all_filter(SEXP quos, SEXP env_private, SEXP s_n, SEXP env_filter) {
-  DPLYR_MASK_INIT();
-
+SEXP dplyr_combine_filter(SEXP lists, SEXP s_n, SEXP rows) {
   R_xlen_t n = Rf_asInteger(s_n);
+  R_xlen_t n_groups = XLENGTH(rows);
+
   SEXP keep = PROTECT(Rf_allocVector(LGLSXP, n));
   int* p_keep = LOGICAL(keep);
+  for (R_xlen_t i = 0; i < n; i++) {
+    p_keep[i] = TRUE;
+  }
 
-  for (R_xlen_t i = 0; i < ngroups; i++) {
-    DPLYR_MASK_SET_GROUP(i);
+  for (R_xlen_t i = 0; i < n_groups; i++) {
     SEXP rows_i = VECTOR_ELT(rows, i);
     R_xlen_t n_i = XLENGTH(rows_i);
-
-    SEXP result_i = PROTECT(eval_filter_one(quos, mask, caller, n_i, env_filter));
-
     int* p_rows_i = INTEGER(rows_i);
-    int* p_result_i = LOGICAL(result_i);
-    for (R_xlen_t j = 0; j < n_i; j++, ++p_rows_i, ++p_result_i) {
-      p_keep[*p_rows_i - 1] = *p_result_i == TRUE;
-    }
 
-    UNPROTECT(1);
+    SEXP list_i = VECTOR_ELT(lists, i);
+    R_xlen_t n_exprs = XLENGTH(list_i);
+    for (R_xlen_t j = 0; j < n_exprs; j++) {
+      SEXP result_i_j = PROTECT(VECTOR_ELT(list_i, j));
+      R_xlen_t n_result_i_j = vctrs::short_vec_size(result_i_j);
+      if (n_result_i_j != n_i) {
+        if (n_result_i_j == 1) {
+          UNPROTECT(1);
+
+          // TODO: there should be no need for recycling
+          result_i_j = PROTECT(vctrs::short_vec_recycle(result_i_j, n_i));
+        }
+      }
+
+      if (Rf_inherits(result_i_j, "data.frame")) {
+        R_xlen_t ncol_result_i_j = XLENGTH(result_i_j);
+        for (R_xlen_t k = 0; k < ncol_result_i_j; k++) {
+          SEXP result_i_j_k = VECTOR_ELT(result_i_j, k);
+          int* p_result_i_j_k = LOGICAL(result_i_j_k);
+          for (R_xlen_t i_keep = 0; i_keep < n_i; i_keep++) {
+            if (p_result_i_j_k[i_keep] != TRUE) {
+              p_keep[p_rows_i[i_keep] - 1] = FALSE;
+            }
+          }
+        }
+      } else if (TYPEOF(result_i_j) == LGLSXP){
+        int* p_result_i_j = LOGICAL(result_i_j);
+        for (R_xlen_t i_keep = 0; i_keep < n_i; i_keep++) {
+          if (p_result_i_j[i_keep] != TRUE) {
+            p_keep[p_rows_i[i_keep] - 1] = FALSE;
+          }
+        }
+      }
+
+      UNPROTECT(1);
+    }
   }
 
   UNPROTECT(1);
-  DPLYR_MASK_FINALISE();
-
   return keep;
 }
+
+

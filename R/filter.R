@@ -116,25 +116,17 @@ filter.data.frame <- function(.data, ..., .preserve = FALSE) {
 }
 
 filter_rows <- function(.data, ...) {
+  # apply
+  if (dots_n(...) == 0 || nrow(.data) == 0) {
+    return(rep(TRUE, nrow(.data)))
+  }
   dots <- check_filter(enquos(...))
   mask <- DataMask$new(.data, caller_env())
-  on.exit(mask$forget("filter"), add = TRUE)
+  lists <- mask$eval_all(dots, fn = "filter", auto_names = names(exprs_auto_name(dots)))
 
-  env_filter <- env()
-  withCallingHandlers(
-    mask$eval_all_filter(dots, env_filter),
-    error = function(e) {
-      local_call_step(dots = dots, .index = env_filter$current_expression, .fn = "filter")
-
-      abort(c(
-        cnd_bullet_header(),
-        x = conditionMessage(e),
-        i = cnd_bullet_input_info(),
-        i = cnd_bullet_cur_group_label()
-      ), class = "dplyr_error")
-
-    }
-  )
+  # combine
+  keep <- mask$combine_filter(lists)
+  keep
 }
 
 check_filter <- function(dots) {

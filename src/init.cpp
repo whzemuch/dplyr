@@ -92,7 +92,7 @@ static const R_CallMethodDef CallEntries[] = {
   {"dplyr_mask_eval_all", (DL_FUNC)& dplyr_mask_eval_all, 2},
   {"dplyr_mask_eval_all_summarise", (DL_FUNC)& dplyr_mask_eval_all_summarise, 2},
   {"dplyr_mask_eval_all_mutate", (DL_FUNC)& dplyr_mask_eval_all_mutate, 2},
-  {"dplyr_mask_eval_all_filter", (DL_FUNC)& dplyr_mask_eval_all_filter, 4},
+  // {"dplyr_mask_eval_all_filter", (DL_FUNC)& dplyr_mask_eval_all_filter, 4},
 
   {"dplyr_summarise_recycle_chunks", (DL_FUNC)& dplyr_summarise_recycle_chunks, 3},
 
@@ -105,7 +105,8 @@ static const R_CallMethodDef CallEntries[] = {
   {"dplyr_lazy_vec_chop_impl", (DL_FUNC)& dplyr_lazy_vec_chop, 2},
   {"dplyr_data_masks_setup", (DL_FUNC)& dplyr_data_masks_setup, 2},
   {"env_resolved", (DL_FUNC)& env_resolved, 2},
-  {"dplyr_eval_tidy_all", (DL_FUNC)& dplyr_eval_tidy_all, 6},
+  {"dplyr_eval_tidy_all", (DL_FUNC)& dplyr_eval_tidy_all, 7},
+  {"dplyr_combine_filter", (DL_FUNC)& dplyr_combine_filter, 3},
 
   {NULL, NULL, 0}
 };

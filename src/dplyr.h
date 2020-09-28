@@ -95,7 +95,10 @@ SEXP dplyr_mask_add(SEXP env_private, SEXP s_name, SEXP chunks);
 SEXP dplyr_lazy_vec_chop(SEXP data, SEXP caller_env);
 SEXP dplyr_data_masks_setup(SEXP chops, SEXP data);
 SEXP env_resolved(SEXP env, SEXP names);
-SEXP dplyr_eval_tidy_all(SEXP quosures, SEXP chops, SEXP masks, SEXP caller_env, SEXP auto_names, SEXP context);
+SEXP dplyr_eval_tidy_all(SEXP quosures, SEXP chops, SEXP masks, SEXP caller_env, SEXP auto_names, SEXP private_env, SEXP fn);
+SEXP dplyr_combine_filter(SEXP lists, SEXP n, SEXP rows);
+
+bool all_lgl_columns(SEXP data);
 
 #define DPLYR_MASK_INIT()                                                          \
 SEXP rows = PROTECT(Rf_findVarInFrame(env_private, dplyr::symbols::rows));         \
