@@ -48,7 +48,9 @@ void dplyr_lazy_vec_chop_ungrouped(SEXP chops_env, SEXP data) {
 }
 
 SEXP dplyr_lazy_vec_chop(SEXP data, SEXP rows, SEXP caller_env) {
-  SEXP chops_env = PROTECT(new_environment(XLENGTH(data), caller_env));
+  SEXP indices_env = PROTECT(new_environment(1, caller_env));
+  Rf_defineVar(dplyr::symbols::dot_indices, rows, indices_env);
+  SEXP chops_env = PROTECT(new_environment(XLENGTH(data), indices_env));
   if (Rf_inherits(data, "grouped_df")) {
     dplyr_lazy_vec_chop_grouped(chops_env, data, rows, false);
   } else if (Rf_inherits(data, "rowwise_df")) {
@@ -56,7 +58,7 @@ SEXP dplyr_lazy_vec_chop(SEXP data, SEXP rows, SEXP caller_env) {
   } else {
     dplyr_lazy_vec_chop_ungrouped(chops_env, data);
   }
-  UNPROTECT(1);
+  UNPROTECT(2);
   return chops_env;
 }
 
@@ -150,6 +152,22 @@ Function function_case(SEXP fn) {
   } else {
     return OTHER;
   }
+}
+
+void stop_with_context(const char* msg, const char* type, SEXP data, SEXP private_env) {
+  SEXP error_info = PROTECT(Rf_allocVector(VECSXP, 2));
+  SET_VECTOR_ELT(error_info, 0, Rf_mkString(type));
+  SET_VECTOR_ELT(error_info, 1, data);
+
+  SEXP error_info_names = Rf_allocVector(STRSXP, 2);
+  SET_STRING_ELT(error_info_names, 0, Rf_mkChar("type"));
+  SET_STRING_ELT(error_info_names, 1, Rf_mkChar("data"));
+  Rf_namesgets(error_info, error_info_names);
+
+  Rf_defineVar(dplyr::symbols::current_error, error_info, private_env);
+  UNPROTECT(2);
+
+  Rf_error(msg);
 }
 
 
@@ -271,9 +289,28 @@ SEXP dplyr_eval_tidy_all(SEXP quosures, SEXP chops, SEXP masks, SEXP caller_env,
         // check type
         if (fn_case == FILTER) {
           if (TYPEOF(result) != LGLSXP) {
-            if (!Rf_inherits(result, "data.frame") || !all_lgl_columns(result)) {
-              Rf_error("incompatible type: must be a logical vector");
+            if (Rf_inherits(result, "data.frame")){
+              R_xlen_t nc = XLENGTH(result);
+
+              for (R_xlen_t i_result = 0; i_result < nc; i_result++) {
+                if (TYPEOF(VECTOR_ELT(result, i_result)) != LGLSXP) {
+                  SEXP error_data = PROTECT(Rf_allocVector(VECSXP, 2));
+                  SET_VECTOR_ELT(error_data, 0, VECTOR_ELT(result, i_result));
+
+                  SEXP names = Rf_getAttrib(result, R_NamesSymbol);
+                  SET_VECTOR_ELT(error_data, 1, Rf_mkString(CHAR(STRING_ELT(names, i_result))));
+
+                  stop_with_context("incompatible type in column: must be a logical vector", "filter_incompatible_type_in_column", error_data, private_env);
+                }
+              }
+
+            } else {
+              stop_with_context("incompatible type: must be a logical vector", "filter_incompatible_type", result, private_env);
             }
+          }
+        } else  if (fn_case == SUMMARISE) {
+          if (!vctrs::vec_is_vector(result)) {
+            stop_with_context("incompatible type: must be a vector", "incompatible_type", result, private_env);
           }
         }
 

@@ -66,6 +66,22 @@ cnd_bullet_combine_details <- function(x, arg) {
   glue("Result type for group {group} ({details}): <{vec_ptype_full(x)}>.")
 }
 
+cnd_bullet_combine_details2 <- function(x, arg, data) {
+  # TODO: the vctrs_error_incompatible_type should provide that information
+  group <- as.numeric(sub("^[.][.](.*)[$].*", "\\1", arg))
+  keys <- group_keys(data)[group, ]
+  details <- group_labels_details(keys)
+  if (inherits(data, "rowwise_df")) {
+    if (ncol(keys) == 0) {
+      glue("Result type for row {group}: <{vec_ptype_full(x)}>.")
+    } else {
+      glue("Result type for group {group} ({details}): <{vec_ptype_full(x)}>.")
+    }
+  } else if(is_grouped_df(data)) {
+    glue("Result type for group {group} ({details}): <{vec_ptype_full(x)}>.")
+  }
+}
+
 err_vars <- function(x) {
   if (is.logical(x)) {
     x <- which(x)

@@ -42,6 +42,7 @@ SEXP symbols::levels = Rf_install("levels");
 SEXP symbols::groups = Rf_install("groups");
 SEXP symbols::current_group = Rf_install("current_group");
 SEXP symbols::current_expression = Rf_install("current_expression");
+SEXP symbols::current_error = Rf_install("current_error");
 SEXP symbols::rows = Rf_install("rows");
 SEXP symbols::mask = Rf_install("mask");
 SEXP symbols::caller = Rf_install("caller");

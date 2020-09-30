@@ -26,6 +26,7 @@ struct symbols {
   static SEXP ptype;
   static SEXP current_group;
   static SEXP current_expression;
+  static SEXP current_error;
   static SEXP rows;
   static SEXP mask;
   static SEXP caller;

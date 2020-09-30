@@ -210,107 +210,84 @@ summarise.rowwise_df <- function(.data, ..., .groups = NULL) {
 
 summarise_cols <- function(.data, ...) {
   mask <- DataMask$new(.data, caller_env())
-  on.exit(mask$forget("summarise"), add = TRUE)
 
   dots <- enquos(...)
   dots_names <- names(dots)
   auto_named_dots <- names(enquos(..., .named = TRUE))
 
-  cols <- list()
+  lists <- mask$eval_all(dots, fn = "summarise", auto_names = names(exprs_auto_name(dots)))
 
-  sizes <- 1L
-  chunks <- vector("list", length(dots))
-  types <- vector("list", length(dots))
+  # TODO: rework error about incompatible sizes
+  tibbles <- withCallingHandlers(map2(lists, seq_along(lists), function(.x, .group) {
+    # skip data frames with 0 columns - should df_list() do this ?
+    .x <- map2(.x, names(.x), function(result, name) {
+      if (is.data.frame(result) && name == "" && ncol(result) == 0) {
+        result <- NULL
+      }
+      result
+    })
+    mask$set_current_group(.group)
+    new_data_frame(df_list(!!!.x))
+  }), error = function(e) {
+    if (inherits(e, "vctrs_error_incompatible_size")) {
+      bullets <- c(
+        glue("Problem with `summarise()` input `{e$y_arg}.`"),
+        x = glue("Input `{e$y_arg}` must be size {or_1(e$x_size)}, not {e$y_size}."),
+        i = glue("Input `{e$x_arg}` had size {e$x_size}.")
+      )
 
-  withCallingHandlers({
-    # generate all chunks and monitor the sizes
-    for (i in seq_along(dots)) {
-      quo <- dots[[i]]
-
-      # a list in which each element is the result of
-      # evaluating the quosure in the "sliced data mask"
-      #
-      # TODO: reinject hybrid evaluation at the R level
-      chunks[[i]] <- mask$eval_all_summarise(quo)
-
-      mask$across_cache_reset()
-
-      result_type <- types[[i]] <- withCallingHandlers(
-        vec_ptype_common(!!!chunks[[i]]),
-        vctrs_error_incompatible_type = function(cnd) {
-          abort(class = "dplyr:::error_summarise_incompatible_combine", parent = cnd)
+      index_group <- mask$get_current_group()
+      if (is_grouped_df(.data)) {
+        keys <- group_keys(.data)[index_group, ]
+        bullets <- c(bullets, i = glue("The error occurred in group {index_group}: {group_labels_details(keys)}."))
+      } else if (inherits(.data, "rowwise_df")) {
+        keys <- group_keys(.data)[index_group, ]
+        if (ncol(keys)) {
+          bullets <- c(bullets, i = glue("The error occurred in row {index_group}: {group_labels_details(keys)}."))
+        } else {
+          bullets <- c(bullets, i = glue("The error occurred in row {index_group}."))
         }
-      )
-
-      if ((is.null(dots_names) || dots_names[i] == "") && is.data.frame(result_type)) {
-        # remember each result separately
-        map2(seq_along(result_type), names(result_type), function(j, nm) {
-          mask$add(nm, pluck(chunks[[i]], j))
-        })
-      } else {
-        # remember
-        mask$add(auto_named_dots[i], chunks[[i]])
       }
-    }
 
-    recycle_info <- .Call(`dplyr_summarise_recycle_chunks`, chunks, mask$get_rows(), types)
-    chunks <- recycle_info$chunks
-    sizes <- recycle_info$sizes
+      index_error_expression <- which(names(lists[[index_group]]) == e$y_arg)
+      error_expression <- deparse(quo_squash(dots[[index_error_expression]]))
 
-    # materialize columns
-    for (i in seq_along(dots)) {
-      result <- vec_c(!!!chunks[[i]], .ptype = types[[i]])
-
-      if ((is.null(dots_names) || dots_names[i] == "") && is.data.frame(result)) {
-        cols[names(result)] <- result
-      } else {
-        cols[[ auto_named_dots[i] ]] <- result
-      }
-    }
-
-  },
-  error = function(e) {
-    local_call_step(dots = dots, .index = i, .fn = "summarise",
-      .dot_data = inherits(e, "rlang_error_data_pronoun_not_found")
-    )
-    call_step <- peek_call_step()
-    error_name <- call_step$error_name
-
-    if (inherits(e, "dplyr:::error_summarise_incompatible_combine")) {
-      bullets <- c(
-        x = glue("Input `{error_name}` must return compatible vectors across groups", .envir = peek_call_step()),
-        i = cnd_bullet_combine_details(e$parent$x, e$parent$x_arg),
-        i = cnd_bullet_combine_details(e$parent$y, e$parent$y_arg)
+      bullets <- c(bullets,
+        i = glue("Input `{e$y_arg}` is `{error_expression}`.")
       )
-    } else if (inherits(e, "dplyr:::summarise_unsupported_type")) {
-      bullets <- c(
-        x = glue("Input `{error_name}` must be a vector, not {friendly_type_of(result)}.", result = e$result),
-        i = cnd_bullet_rowwise_unlist()
-      )
-    } else if (inherits(e, "dplyr:::summarise_incompatible_size")) {
-      # so that cnd_bullet_cur_group_label() correctly reports the faulty group
-      peek_mask()$set_current_group(e$group)
 
+    } else {
+      bullets <- conditionMessage(e)
+    }
+    abort(bullets, parent = e)
+  })
+  sizes <- list_sizes(tibbles)
+
+  cols <- withCallingHandlers(vec_rbind(!!!tibbles), error = function(e) {
+    if (inherits(e, "vctrs_error_incompatible_type")) {
+      input_name <- sub("^.*[$]", "", e$x_arg)
       bullets <- c(
-        x = glue("Input `{error_name}` must be size {or_1(expected_size)}, not {size}.", expected_size = e$expected_size, size = e$size),
-        i = glue("An earlier column had size {expected_size}.", expected_size = e$expected_size)
+        glue("Problem with `summarise()` input `{input_name}`."),
+        x = glue("Input `{input_name}` must return compatible vectors across groups."),
+        i = cnd_bullet_combine_details2(e$x, e$x_arg, .data),
+        i = cnd_bullet_combine_details2(e$y, e$y_arg, .data)
+
+        # TODO: this misses "Input {input_name} is .." because this happens after
+        #       the df_list() call and so the problem might come from
+        #       one column that has been auto spliced.
+        #
+        #       or maybe this should rather be:
+        #
+        #  Error: Problem with combining `summarise()` results.
+        #  x Can't combine `..1$a` <double> and `..2$a` <character>.
       )
     } else {
-      bullets <- c(
-        x = conditionMessage(e)
-      )
+      bullets <- conditionMessage(e)
     }
-
-    bullets <- c(cnd_bullet_header(), bullets, i = cnd_bullet_input_info())
-    if (!inherits(e, "dplyr:::error_summarise_incompatible_combine")) {
-      bullets <- c(bullets, i = cnd_bullet_cur_group_label())
-    }
-
-    abort(bullets, class = "dplyr_error")
-
+    abort(bullets, parent = e)
   })
 
-  list(new = cols, size = sizes, all_one = identical(sizes ,1L))
+  list(new = cols, size = sizes, all_one = all(sizes == 1L) || length(cols) == 0L)
 }
 
 summarise_build <- function(.data, cols) {

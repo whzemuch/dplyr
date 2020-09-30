@@ -1,6 +1,15 @@
 DataMask <- R6Class("DataMask",
   public = list(
     initialize = function(data, caller) {
+      private$data <- data
+
+      names_bindings <- chr_unserialise_unicode(names2(data))
+      if (anyDuplicated(names_bindings)) {
+        abort("Can't transform a data frame with duplicate names.")
+      }
+
+      private$caller <- caller
+
       rows <- group_rows(data)
       # workaround for when there are 0 groups
       if (length(rows) == 0) {
@@ -14,71 +23,8 @@ DataMask <- R6Class("DataMask",
       private$chops <- dplyr_lazy_vec_chop(data, rows, caller)
       private$masks <- dplyr_data_masks(private$chops, data, rows)
 
-      private$data <- data
-      private$caller <- caller
-      private$bindings <- env(empty_env())
       private$keys <- group_keys(data)
       private$group_vars <- group_vars(data)
-
-      # A function that returns all the chunks for a column
-      resolve_chunks <- if (inherits(data, "rowwise_df")) {
-        function(index) {
-          col <- .subset2(data, index)
-          res <- vec_chop(col, rows)
-          if (vec_is_list(col)) {
-            res <- map(res, `[[`, 1L)
-          }
-          res
-        }
-      } else if (is_grouped_df(data)) {
-        function(index) vec_chop(.subset2(data, index), rows)
-      } else {
-        # for ungrouped data frames, there is only one chunk that
-        # is made of the full column
-        function(index) list(.subset2(data, index))
-      }
-
-      private$used <- rep(FALSE, ncol(data))
-
-      names_bindings <- chr_unserialise_unicode(names2(data))
-      if (anyDuplicated(names_bindings)) {
-        abort("Can't transform a data frame with duplicate names.")
-      }
-
-      private$resolved <- set_names(vector(mode = "list", length = ncol(data)), names_bindings)
-
-      promise_fn <- function(index, chunks = resolve_chunks(index), name = names_bindings[index]) {
-        # resolve the chunks and hold the slice for current group
-        res <- .subset2(chunks, self$get_current_group())
-
-        # track - not safe to directly use `index`
-        self$set(name, chunks)
-
-        # return result for current slice
-        res
-      }
-
-      promises <- map(seq_len(ncol(data)), function(.x) expr(promise_fn(!!.x)))
-      env_bind_lazy(private$bindings, !!!set_names(promises, names_bindings))
-
-      private$mask <- new_data_mask(private$bindings)
-      private$mask$.data <- as_data_pronoun(private$mask)
-    },
-
-    forget = function(fn) {
-      names_bindings <- self$current_vars()
-
-      osbolete_promise_fn <- function(name) {
-        abort(c(
-          "Obsolete data mask.",
-          x = glue("Too late to resolve `{name}` after the end of `dplyr::{fn}()`."),
-          i = glue("Did you save an object that uses `{name}` lazily in a column in the `dplyr::{fn}()` expression ?")
-        ))
-      }
-
-      promises <- map(names_bindings, function(.x) expr(osbolete_promise_fn(!!.x)))
-      env_unbind(private$bindings, names_bindings)
-      env_bind_lazy(private$bindings, !!!set_names(promises, names_bindings))
     },
 
     add = function(name, chunks) {
@@ -99,8 +45,8 @@ DataMask <- R6Class("DataMask",
     },
 
     remove = function(name) {
-      self$set(name, NULL)
-      env_unbind(private$bindings, name)
+      # self$set(name, NULL)
+      # env_unbind(private$bindings, name)
     },
 
     resolve = function(name) {
@@ -118,34 +64,64 @@ DataMask <- R6Class("DataMask",
       chunks
     },
 
-
-    get_resolved = function(name) {
-      private$resolved[[name]]
-    },
-
     eval_all = function(quosures, fn, auto_names = names(quosures) %||% paste0(".quosure_", seq_along(quosures))) {
       withCallingHandlers(
         .Call(dplyr_eval_tidy_all, quosures, private$chops, private$masks, private$caller, auto_names, private, fn),
         error = function(e) {
 
           # retrieve context information
+          .data <- private$data
           index_expression <- private$current_expression
           index_group <- private$current_group
 
           # TODO: handle when index_group = -1: error in hybrid eval
           local_call_step(dots = quosures, .index = index_expression, .fn = fn,
                           .dot_data = inherits(e, "rlang_error_data_pronoun_not_found"))
+          call_step <- peek_call_step()
+          error_name <- call_step$error_name
+          error_expression <- call_step$error_expression
+
+          msg <- conditionMessage(e)
+          rowwise_hint <- FALSE
+
+          if (!is.null(private$current_error)) {
+            error_type <- private$current_error$type
+            error_data <- private$current_error$data
+
+            msg <- switch(error_type,
+              "filter_incompatible_type_in_column" = glue("Input `{error_name}${error_data[[2]]}` must be a logical vector, not {friendly_type_of(error_data[[1]])}."),
+              "filter_incompatible_type"           = glue("Input `{error_name}` must be a logical vector, not {friendly_type_of(error_data)}."),
+              "incompatible_type"                  = glue("Input `{error_name}` must be a vector, not {friendly_type_of(error_data)}."),
+              conditionMessage(e)
+            )
+
+            if (error_type == "incompatible_type" && inherits(.data, "rowwise_df")) {
+              rowwise_hint <- TRUE
+            }
+          }
 
           bullets <- c(
-            cnd_bullet_header(),
-            x = conditionMessage(e),
-            i = cnd_bullet_input_info()
+            glue("Problem with `{fn}()` input `{error_name}`."),
+            x = msg,
+            i = glue("Input `{error_name}` is `{error_expression}`.")
           )
-          .data <- private$data
+
+          if (rowwise_hint) {
+            bullets <- c(bullets, i = glue("Did you mean: `{error_name} = list({error_expression})` ?"))
+          }
+
           if (is_grouped_df(.data)) {
             keys <- group_keys(.data)[index_group, ]
             bullets <- c(bullets, i = glue("The error occurred in group {index_group}: {group_labels_details(keys)}."))
+          } else if (inherits(.data, "rowwise_df")) {
+            keys <- group_keys(.data)[index_group, ]
+            if (ncol(keys)) {
+              bullets <- c(bullets, i = glue("The error occurred in row {index_group}: {group_labels_details(keys)}."))
+            } else {
+              bullets <- c(bullets, i = glue("The error occurred in row {index_group}."))
+            }
           }
+
           abort(bullets)
         }
       )
@@ -174,7 +150,10 @@ DataMask <- R6Class("DataMask",
     },
 
     current_cols = function(vars) {
-      env_get_list(private$bindings, vars)
+      current_mask <- private$masks[[private$current_group]]
+
+      # TODO: not sure about this
+      env_get_list(current_mask$.top_env, vars)
     },
 
     current_rows = function() {
@@ -186,7 +165,7 @@ DataMask <- R6Class("DataMask",
     },
 
     current_vars = function() {
-      names(private$resolved)
+      names(private$data)
     },
 
     current_non_group_vars = function() {
@@ -210,7 +189,7 @@ DataMask <- R6Class("DataMask",
     },
 
     get_used = function() {
-      private$used
+      .Call(env_resolved, private$chops, names(private$data))
     },
 
     unused_vars = function() {
@@ -229,7 +208,6 @@ DataMask <- R6Class("DataMask",
 
       across_vars <- self$current_non_group_vars()
       unused_vars <- self$unused_vars()
-
       across_vars_unused <- intersect(across_vars, unused_vars)
       across_vars_used <- setdiff(across_vars, across_vars_unused)
 
@@ -271,16 +249,11 @@ DataMask <- R6Class("DataMask",
 
     current_group = NA_integer_,
     current_expression = NA_integer_,
+    current_error = NULL,
 
-    mask = NULL,
-    old_vars = character(),
     group_vars = character(),
-    used = logical(),
-    resolved = list(),
-    which_used = integer(),
     rows = NULL,
     keys = NULL,
-    bindings = NULL,
     across_cache = list()
   )
 )
