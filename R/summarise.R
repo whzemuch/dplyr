@@ -211,13 +211,14 @@ summarise.rowwise_df <- function(.data, ..., .groups = NULL) {
 summarise_cols <- function(.data, ...) {
   mask <- DataMask$new(.data, caller_env())
 
+  ## apply
   dots <- enquos(...)
   dots_names <- names(dots)
   auto_named_dots <- names(enquos(..., .named = TRUE))
 
   lists <- mask$eval_all(dots, fn = "summarise", auto_names = names(exprs_auto_name(dots)))
 
-  # TODO: rework error about incompatible sizes
+  ## combine
   tibbles <- withCallingHandlers(map2(lists, seq_along(lists), function(.x, .group) {
     # skip data frames with 0 columns - should df_list() do this ?
     .x <- map2(.x, names(.x), function(result, name) {

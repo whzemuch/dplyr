@@ -45,6 +45,8 @@ SEXP symbols::current_expression = Rf_install("current_expression");
 SEXP symbols::current_error = Rf_install("current_error");
 SEXP symbols::rows = Rf_install("rows");
 SEXP symbols::mask = Rf_install("mask");
+SEXP symbols::masks = Rf_install("masks");
+SEXP symbols::chops = Rf_install("chops");
 SEXP symbols::caller = Rf_install("caller");
 SEXP symbols::resolved = Rf_install("resolved");
 SEXP symbols::bindings = Rf_install("bindings");
@@ -106,7 +108,7 @@ static const R_CallMethodDef CallEntries[] = {
   {"dplyr_lazy_vec_chop_impl", (DL_FUNC)& dplyr_lazy_vec_chop, 3},
   {"dplyr_data_masks_setup", (DL_FUNC)& dplyr_data_masks_setup, 3},
   {"env_resolved", (DL_FUNC)& env_resolved, 2},
-  {"dplyr_eval_tidy_all", (DL_FUNC)& dplyr_eval_tidy_all, 7},
+  {"dplyr_eval_tidy_all", (DL_FUNC)& dplyr_eval_tidy_all, 4},
   {"dplyr_combine_filter", (DL_FUNC)& dplyr_combine_filter, 3},
 
   {NULL, NULL, 0}

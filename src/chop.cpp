@@ -170,8 +170,7 @@ void stop_with_context(const char* msg, const char* type, SEXP data, SEXP privat
   Rf_error(msg);
 }
 
-
-SEXP dplyr_eval_tidy_all(SEXP quosures, SEXP chops, SEXP masks, SEXP caller_env, SEXP auto_names, SEXP private_env, SEXP fn) {
+SEXP dplyr_eval_tidy_all(SEXP quosures, SEXP auto_names, SEXP private_env, SEXP fn) {
   R_xlen_t n_expr = XLENGTH(quosures);
   SEXP names = PROTECT(Rf_getAttrib(quosures, R_NamesSymbol));
   if (names == R_NilValue) {
@@ -179,6 +178,10 @@ SEXP dplyr_eval_tidy_all(SEXP quosures, SEXP chops, SEXP masks, SEXP caller_env,
     names = PROTECT(Rf_allocVector(STRSXP, n_expr));
   }
 
+  SEXP list_indices = Rf_findVarInFrame(private_env, dplyr::symbols::rows);
+  SEXP chops = Rf_findVarInFrame(private_env, dplyr::symbols::chops);
+  SEXP masks = Rf_findVarInFrame(private_env, dplyr::symbols::masks);
+  SEXP caller_env = Rf_findVarInFrame(private_env, dplyr::symbols::caller);
   R_xlen_t n_masks = XLENGTH(masks);
 
   Function fn_case = function_case(fn);
@@ -192,8 +195,8 @@ SEXP dplyr_eval_tidy_all(SEXP quosures, SEXP chops, SEXP masks, SEXP caller_env,
     UNPROTECT(1);
   }
 
-  SEXP list_indices = Rf_findVarInFrame(private_env, dplyr::symbols::rows);
-
+  // context variables : fill that efficiently so that when this errors
+  //                     we know what the expression x group it was
   SEXP index_expression = Rf_findVarInFrame(private_env, dplyr::symbols::current_expression);
   int *p_index_expression = INTEGER(index_expression);
 

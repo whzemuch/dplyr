@@ -66,7 +66,7 @@ DataMask <- R6Class("DataMask",
 
     eval_all = function(quosures, fn, auto_names = names(quosures) %||% paste0(".quosure_", seq_along(quosures))) {
       withCallingHandlers(
-        .Call(dplyr_eval_tidy_all, quosures, private$chops, private$masks, private$caller, auto_names, private, fn),
+        .Call(dplyr_eval_tidy_all, quosures, auto_names, private, fn),
         error = function(e) {
 
           # retrieve context information
@@ -182,6 +182,10 @@ DataMask <- R6Class("DataMask",
 
     set_current_group = function(group) {
       private$current_group <- group
+    },
+
+    set_current_expression = function(i) {
+      private$current_expression <- i
     },
 
     full_data = function() {
