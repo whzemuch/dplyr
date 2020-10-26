@@ -221,6 +221,8 @@ summarise_cols <- function(.data, ...) {
   chunks <- vector("list", length(dots))
   types <- vector("list", length(dots))
 
+  # results <- mask$eval_summarise(dots, auto_named_dots)
+
   withCallingHandlers({
     # generate all chunks and monitor the sizes
     for (i in seq_along(dots)) {

@@ -42,6 +42,7 @@ SEXP symbols::levels = Rf_install("levels");
 SEXP symbols::groups = Rf_install("groups");
 SEXP symbols::current_group = Rf_install("current_group");
 SEXP symbols::current_expression = Rf_install("current_expression");
+SEXP symbols::current_step = Rf_install("current_step");
 SEXP symbols::rows = Rf_install("rows");
 SEXP symbols::caller = Rf_install("caller");
 SEXP symbols::all_vars = Rf_install("all_vars");
@@ -55,6 +56,7 @@ SEXP symbols::envir = Rf_install("envir");
 SEXP symbols::vec_is_list = Rf_install("vec_is_list");
 SEXP symbols::new_env = Rf_install("new.env");
 SEXP symbols::dot_data = Rf_install(".data");
+SEXP symbols::bang = Rf_install("!");
 
 SEXP vectors::classes_vctrs_list_of = get_classes_vctrs_list_of();
 SEXP vectors::empty_int_vector = get_empty_int_vector();
@@ -65,21 +67,23 @@ SEXP vectors::names_summarise_recycle_chunks = get_names_summarise_recycle_chunk
 SEXP functions::vec_chop = NULL;
 SEXP functions::dot_subset2 = NULL;
 SEXP functions::list = NULL;
+SEXP functions::eval_hybrid = NULL;
 
 } // dplyr
 
-SEXP dplyr_init_library(SEXP ns_dplyr, SEXP ns_vctrs, SEXP ns_rlang) {
+SEXP dplyr_init_library(SEXP ns_dplyr, SEXP ns_vctrs, SEXP ns_rlang, SEXP ns_funs) {
   dplyr::envs::ns_dplyr = ns_dplyr;
   dplyr::envs::ns_vctrs = ns_vctrs;
   dplyr::envs::ns_rlang = ns_rlang;
   dplyr::functions::vec_chop = Rf_findVarInFrame(ns_vctrs, Rf_install("vec_chop"));
   dplyr::functions::dot_subset2 = Rf_findVarInFrame(R_BaseEnv, Rf_install(".subset2"));
   dplyr::functions::list = Rf_findVarInFrame(R_BaseEnv, Rf_install("list"));
+  dplyr::functions::eval_hybrid = Rf_findVarInFrame(ns_funs, Rf_install("eval_hybrid"));
   return R_NilValue;
 }
 
 static const R_CallMethodDef CallEntries[] = {
-  {"dplyr_init_library", (DL_FUNC)& dplyr_init_library, 3},
+  {"dplyr_init_library", (DL_FUNC)& dplyr_init_library, 4},
 
   {"dplyr_expand_groups", (DL_FUNC)& dplyr_expand_groups, 3},
   {"dplyr_between", (DL_FUNC)& dplyr_between, 3},
@@ -87,6 +91,8 @@ static const R_CallMethodDef CallEntries[] = {
   {"dplyr_cumany", (DL_FUNC)& dplyr_cumany, 1},
   {"dplyr_cummean", (DL_FUNC)& dplyr_cummean, 1},
   {"dplyr_validate_grouped_df", (DL_FUNC)& dplyr_validate_grouped_df, 2},
+
+  {"dplyr_eval_summarise", (DL_FUNC)& dplyr_eval_summarise, 3},
 
   {"dplyr_mask_eval_all", (DL_FUNC)& dplyr_mask_eval_all, 2},
   {"dplyr_mask_eval_all_summarise", (DL_FUNC)& dplyr_mask_eval_all_summarise, 2},

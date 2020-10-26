@@ -49,6 +49,10 @@ DataMask <- R6Class("DataMask",
       private$chops[[name]]
     },
 
+    eval_summarise = function(quos, auto_names) {
+      .Call(`dplyr_eval_summarise`, quos, auto_names, private)
+    },
+
     eval_all = function(quo) {
       .Call(`dplyr_mask_eval_all`, quo, private)
     },
@@ -183,6 +187,8 @@ DataMask <- R6Class("DataMask",
 
     # the current group, updated internally
     current_group = 0L,
+    current_expression = 0L,
+    current_step = 0L,
 
     # caller environment of the verb (summarise(), ...)
     caller = NULL,

@@ -26,6 +26,7 @@ struct symbols {
   static SEXP ptype;
   static SEXP current_group;
   static SEXP current_expression;
+  static SEXP current_step;
   static SEXP rows;
   static SEXP caller;
   static SEXP all_vars;
@@ -39,6 +40,7 @@ struct symbols {
   static SEXP vec_is_list;
   static SEXP new_env;
   static SEXP dot_data;
+  static SEXP bang;
 };
 
 struct vectors {
@@ -53,6 +55,7 @@ struct functions {
   static SEXP vec_chop;
   static SEXP dot_subset2;
   static SEXP list;
+  static SEXP eval_hybrid;
 };
 
 } // namespace dplyr
@@ -61,6 +64,10 @@ namespace rlang {
 SEXP eval_tidy(SEXP expr, SEXP data, SEXP env);
 SEXP as_data_pronoun(SEXP x);
 SEXP new_data_mask(SEXP bottom, SEXP top);
+}
+
+namespace funs {
+SEXP eval_hybrid(SEXP quo, SEXP chops);
 }
 
 namespace vctrs {
@@ -91,6 +98,7 @@ SEXP dplyr_mask_eval_all_filter(SEXP quos, SEXP env_private, SEXP s_n, SEXP env_
 SEXP dplyr_summarise_recycle_chunks(SEXP chunks, SEXP rows, SEXP ptypes);
 SEXP dplyr_group_indices(SEXP data, SEXP s_nr);
 SEXP dplyr_group_keys(SEXP group_data);
+SEXP dplyr_eval_summarise(SEXP quosures, SEXP auto_names, SEXP env_private);
 
 SEXP dplyr_mask_remove(SEXP env_private, SEXP s_name);
 SEXP dplyr_mask_add(SEXP env_private, SEXP s_name, SEXP chunks);
