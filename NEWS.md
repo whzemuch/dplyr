@@ -1,5 +1,8 @@
 # dplyr (development version)
 
+* Improved performance with many columns, with a dynamic data mask using active
+  bindings and lazy chops (#5017). 
+
 * Clarify that `between()` is not vectorised (#5493).
 
 * Fixed `across()` issue where data frame columns would could not be referred to
