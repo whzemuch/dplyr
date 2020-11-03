@@ -388,6 +388,11 @@ test_that("mutate() preserves the call stack on error (#5308)", {
   expect_true(some(stack, is_call, "foobar"))
 })
 
+test_that("mutate(=NULL) preserves correct all_vars", {
+  df <- data.frame(x = 1, y = 2) %>% mutate(x = NULL, vars = cur_data_all()) %>% pull()
+  expect_equal(df, tibble(y = 2))
+})
+
 # Error messages ----------------------------------------------------------
 
 test_that("mutate() give meaningful errors", {
